@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1d22">
+<meta name="description" content="Control del casco LED: galería de animaciones, editor de pixel art y envío por Bluetooth.">
+<title>Casco LED</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Michroma&display=swap" rel="stylesheet">
+<style>
+:root{
+  --grafito:#1b1d22; --grafito-2:#23262d; --grafito-3:#2c3038;
+  --visera:#0b0e1c; --cromo:#d7dbe2; --cromo-2:#8f96a3; --linea:#363b45;
+  --texto:#eef0f4; --tenue:#9aa0ad;
+  --led-mag:#e04bff; --led-azul:#3b5bff; --led-blanco:#e8f0ff; --led-verde:#2fe377;
+  --error:#ff7a7a;
+  --display:"Michroma","Eurostile","Bank Gothic",system-ui,sans-serif;
+  --cuerpo:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --led-grad:linear-gradient(90deg,var(--led-mag) 0%,var(--led-azul) 34%,var(--led-blanco) 70%,var(--led-verde) 84%);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;min-height:100vh;color:var(--texto);font:16px/1.45 var(--cuerpo);
+  background-color:var(--grafito);
+  /* filigrana tenue, como el decorado plateado del casco */
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.035' stroke-width='1.4'%3E%3Cpath d='M30 30c0-8 6-14 14-14s12 6 12 11-4 9-9 9-7-3-7-7 3-5 5-5'/%3E%3Cpath d='M90 90c0-8 6-14 14-14s12 6 12 11-4 9-9 9-7-3-7-7 3-5 5-5'/%3E%3Cpath d='M86 28c8 0 14 6 14 14s-6 12-11 12-9-4-9-9 3-7 7-7 5 3 5 5'/%3E%3Cpath d='M26 88c8 0 14 6 14 14s-6 12-11 12-9-4-9-9 3-7 7-7 5 3 5 5'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-tap-highlight-color:transparent;
+}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--led-blanco);outline-offset:2px}
+
+.app{max-width:1180px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 16px 40px}
+.barra{display:flex;align-items:center;gap:12px;padding:6px 0 14px}
+.marca{font-family:var(--display);font-size:clamp(17px,4.6vw,22px);letter-spacing:.06em;margin:0;flex:1;line-height:1}
+.marca small{display:block;font-family:var(--cuerpo);font-size:13px;letter-spacing:0;color:var(--tenue);margin-top:6px}
+
+/* botón cromado */
+.cromo{
+  border:1px solid #f4f6fa66;border-radius:999px;padding:10px 18px;min-height:44px;cursor:pointer;
+  background:linear-gradient(180deg,#f3f5f8 0%,#c9ced6 45%,#a7aeb9 55%,#dfe3e9 100%);
+  color:#15171c;font-weight:600;box-shadow:inset 0 1px 0 #fff,0 1px 2px #0006;
+}
+.cromo:active{filter:brightness(.92)}
+.cromo[data-on]{background:var(--grafito-3);color:var(--texto);border-color:var(--linea);box-shadow:none}
+.cromo:disabled{opacity:.45;cursor:not-allowed}
+
+.layout{display:grid;gap:18px;grid-template-columns:minmax(0,1fr)}
+.layout>*{min-width:0}
+@media (min-width:900px){.layout{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}.izq{position:sticky;top:14px}}
+
+/* ---- visera ---- */
+.visera{position:relative}
+#visor{width:100%;display:block;aspect-ratio:1000/330}
+.estado{display:flex;align-items:center;gap:8px;margin:2px 4px 0;font-size:14px;color:var(--tenue);min-height:22px}
+.estado i{width:8px;height:8px;border-radius:50%;background:var(--cromo-2);flex:none}
+.estado[data-on] i{background:var(--led-verde);box-shadow:0 0 8px var(--led-verde)}
+.estado b{color:var(--texto);font-weight:600}
+.pieza{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;margin:14px 4px 12px}
+.pieza h2{font-family:var(--display);font-size:15px;letter-spacing:.04em;margin:0;font-weight:400;line-height:1.3}
+.pieza span{grid-column:1;color:var(--tenue);font-size:14px}
+.pausa{grid-column:2;grid-row:1/3;background:none;border:1px solid var(--linea);color:var(--tenue);border-radius:999px;padding:4px 12px;min-height:32px;cursor:pointer;font-size:14px}
+
+/* ---- envío ---- */
+.envio{background:var(--grafito-2);border:1px solid var(--linea);border-radius:18px;padding:14px}
+.modos{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.modos::-webkit-scrollbar{display:none}
+.modos button{flex:none;border:1px solid var(--linea);background:transparent;color:var(--tenue);border-radius:10px;padding:8px 12px;min-height:40px;cursor:pointer;font-size:15px}
+.modos button[aria-pressed=true]{color:var(--texto);border-color:var(--cromo-2);background:var(--grafito-3)}
+.acciones{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.accion{
+  position:relative;border:0;border-radius:14px;min-height:54px;cursor:pointer;font-weight:600;font-size:16px;
+  color:var(--texto);background:var(--grafito-3);
+}
+.accion.principal{background:var(--visera);box-shadow:inset 0 0 0 1.5px transparent}
+.accion.principal::before{content:"";position:absolute;inset:0;border-radius:14px;padding:1.5px;background:var(--led-grad);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.accion:disabled{opacity:.4;cursor:not-allowed}
+.accion[data-activo]{background:var(--led-grad);color:#0b0e1c}
+.ayuda{font-size:14px;color:var(--tenue);margin:10px 2px 0}
+
+/* ---- pestañas ---- */
+.pestanas{display:flex;background:var(--grafito-2);border:1px solid var(--linea);border-radius:14px;padding:4px;gap:4px}
+.pestanas button{flex:1;min-width:0;border:0;background:none;color:var(--tenue);padding:9px 2px;font-size:15px;border-radius:10px;cursor:pointer;min-height:42px;font-weight:500}
+.pestanas button[aria-selected=true]{background:var(--grafito-3);color:var(--texto);box-shadow:inset 0 1px 0 #ffffff14}
+.panel{padding-top:16px}
+.panel[hidden]{display:none}
+.panel h3{font-family:var(--display);font-weight:400;font-size:13px;letter-spacing:.05em;color:var(--cromo);margin:4px 2px 12px}
+
+/* ---- galería ---- */
+.rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.mini{position:relative;border:1px solid var(--linea);background:var(--grafito-2);border-radius:12px;padding:8px 8px 10px;cursor:pointer;text-align:left;color:var(--texto)}
+.mini canvas{width:100%;display:block;border-radius:6px;background:var(--visera);image-rendering:pixelated}
+.mini span{display:block;font-size:14px;margin-top:7px;line-height:1.25}
+.mini em{display:block}
+.mini em{font-style:normal;color:var(--tenue);font-size:12px}
+.mini[aria-current=true]{border-color:var(--cromo);background:var(--grafito-3)}
+.mini .quitar{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:#000a;color:var(--texto);cursor:pointer;font-size:16px;line-height:1}
+.vacio{color:var(--tenue);font-size:14px;margin:0 2px 18px}
+
+/* ---- editor ---- */
+.lienzo{overflow-x:auto;border-radius:12px;background:var(--visera);border:1px solid var(--linea)}
+#editor{display:block;touch-action:none}
+#editor.mover{touch-action:pan-x}
+.herr{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.herr button,.boton{border:1px solid var(--linea);background:var(--grafito-2);color:var(--texto);border-radius:10px;padding:8px 12px;min-height:42px;cursor:pointer}
+.herr button[aria-pressed=true]{border-color:var(--cromo);background:var(--grafito-3)}
+.etiqueta{display:block;color:var(--tenue);font-size:15px;margin:2px 2px 8px}
+textarea{width:100%;resize:vertical;min-height:64px;background:var(--grafito-2);border:1px solid var(--linea);border-radius:12px;padding:12px 14px;color:var(--texto);font:500 18px/1.35 var(--cuerpo)}
+textarea:focus{border-color:var(--cromo-2);outline:none}
+.creditos{font-size:13px;color:var(--tenue);margin:22px 2px 0;max-width:62ch}
+.fila{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.cuadros{display:flex;gap:6px;overflow-x:auto;margin:14px 0 8px;padding-bottom:4px}
+.cuadros button{flex:none;border:2px solid transparent;border-radius:7px;padding:0;background:var(--visera);cursor:pointer}
+.cuadros button[aria-current=true]{border-color:var(--cromo)}
+.cuadros canvas{display:block;height:26px;image-rendering:pixelated;border-radius:5px}
+
+/* ---- formularios ---- */
+.campo{display:grid;grid-template-columns:110px 1fr 44px;align-items:center;gap:10px;margin:10px 2px}
+.campo label{color:var(--tenue);font-size:15px}
+.campo output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--cromo)}
+.check{display:flex;align-items:center;gap:10px;margin:12px 2px;color:var(--texto);font-size:15px}
+.check input{width:20px;height:20px;accent-color:var(--cromo)}
+.archivo{display:flex;align-items:center;justify-content:center;gap:10px;border:1.5px dashed var(--cromo-2);border-radius:14px;padding:22px;cursor:pointer;color:var(--texto);text-align:center}
+.archivo input{position:absolute;opacity:0;width:1px;height:1px}
+.texto{color:var(--tenue);font-size:15px;max-width:62ch;margin:10px 2px}
+.aviso{border:1px solid #6d5a2b;background:#2b2618;color:#f3dfae;border-radius:14px;padding:12px 14px;margin-bottom:14px;font-size:15px}
+.aviso b{color:#fff}
+details{margin-top:16px}
+summary{cursor:pointer;color:var(--tenue)}
+#registro{font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:var(--tenue);white-space:pre-wrap;max-height:180px;overflow:auto}
+.toast{position:fixed;left:50%;bottom:max(18px,env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--grafito-3);border:1px solid var(--linea);color:var(--texto);padding:10px 16px;border-radius:12px;font-size:15px;box-shadow:0 6px 24px #0008;max-width:calc(100% - 32px);z-index:5}
+.toast[data-error]{border-color:#7a3a3a;color:#ffd3d3}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="barra">
+    <h1 class="marca">Casco LED<small>Pixel art para tu visera</small></h1>
+    <button id="btnCon" class="cromo">Conectar casco</button>
+  </header>
+
+  <div id="sinBT" class="aviso" hidden>
+    Este navegador no puede usar Bluetooth. En <b>iPhone</b> abre esta página en <b>Bluefy</b>; en la <b>PC</b> usa <b>Chrome</b> o <b>Edge</b>. Puedes explorar y dibujar, pero no enviar.
+  </div>
+
+  <div class="layout">
+    <section class="izq" aria-label="Vista del casco y envío">
+      <div class="visera">
+        <canvas id="visor" width="1000" height="330" role="img" aria-label="Vista previa de la visera"></canvas>
+      </div>
+      <p id="estado" class="estado"><i></i><span>Casco sin conectar</span></p>
+
+      <div class="pieza">
+        <h2 id="nomPieza">Carita</h2>
+        <span id="detPieza"></span>
+        <button id="btnPausa" class="pausa" aria-pressed="false">Pausar</button>
+      </div>
+
+      <div class="envio">
+        <div class="modos" role="group" aria-label="Cómo mostrar la imagen">
+          <button data-modo="1" aria-pressed="true">Fija</button>
+          <button data-modo="3" aria-pressed="false">Hacia la izquierda</button>
+          <button data-modo="4" aria-pressed="false">Hacia la derecha</button>
+          <button data-modo="5" aria-pressed="false">Hacia arriba</button>
+          <button data-modo="6" aria-pressed="false">Hacia abajo</button>
+          <button data-modo="2" aria-pressed="false">Parpadeo</button>
+        </div>
+        <div class="acciones">
+          <button id="bEnviar" class="accion">Enviar imagen</button>
+          <button id="bAnimar" class="accion principal">Animar</button>
+        </div>
+        <p id="ayuda" class="ayuda"></p>
+      </div>
+    </section>
+
+    <section aria-label="Contenido">
+      <div class="pestanas" role="tablist">
+        <button role="tab" aria-selected="true" aria-controls="p-galeria" id="t-galeria">Galería</button>
+        <button role="tab" aria-selected="false" aria-controls="p-texto" id="t-texto">Texto</button>
+        <button role="tab" aria-selected="false" aria-controls="p-dibujar" id="t-dibujar">Dibujar</button>
+        <button role="tab" aria-selected="false" aria-controls="p-importar" id="t-importar">Importar</button>
+        <button role="tab" aria-selected="false" aria-controls="p-ajustes" id="t-ajustes">Ajustes</button>
+      </div>
+
+      <div id="p-galeria" class="panel" role="tabpanel" aria-labelledby="t-galeria">
+        <h3>Mis diseños</h3>
+        <p id="sinMios" class="vacio">Lo que dibujes o importes y guardes aparece aquí.</p>
+        <div id="mios" class="rejilla" style="margin-bottom:22px"></div>
+        <h3>Animaciones</h3>
+        <div id="galAnim" class="rejilla" style="margin-bottom:22px"></div>
+        <h3>Tiras para desplazar</h3>
+        <div id="galTira" class="rejilla"></div>
+      </div>
+
+      <div id="p-texto" class="panel" role="tabpanel" aria-labelledby="t-texto" hidden>
+        <label for="texto" class="etiqueta">Tu mensaje</label>
+        <textarea id="texto" rows="2" maxlength="120" placeholder="Escribe aquí lo que quieres ver en el casco" autocomplete="off" spellcheck="false"></textarea>
+        <label class="check"><input id="gruesa" type="checkbox"> Letra gruesa (se lee mejor de lejos)</label>
+        <div class="campo"><label for="sep">Separación</label><input id="sep" type="range" min="0" max="3" value="0"><output id="sepV">0</output></div>
+        <p id="infoTexto" class="texto">Lo que escribas aparece en la visera. Si cabe en la pantalla queda fijo; si es más largo se vuelve tira y se desplaza.</p>
+        <div class="fila"><button id="bGuardarTexto" class="boton">Guardar en mis diseños</button></div>
+      </div>
+
+      <div id="p-dibujar" class="panel" role="tabpanel" aria-labelledby="t-dibujar" hidden>
+        <div class="lienzo"><canvas id="editor"></canvas></div>
+        <div class="herr">
+          <button id="hLapiz" aria-pressed="true">Lápiz</button>
+          <button id="hBorrar" aria-pressed="false">Borrador</button>
+          <button id="hMover" aria-pressed="false" hidden>Desplazar vista</button>
+          <button id="bDeshacer">Deshacer</button>
+          <button id="bIzq" aria-label="Mover dibujo a la izquierda">◀</button>
+          <button id="bDer" aria-label="Mover dibujo a la derecha">▶</button>
+          <button id="bInv">Invertir</button>
+          <button id="bLimpiar">Limpiar</button>
+        </div>
+        <div id="cuadros" class="cuadros" aria-label="Cuadros"></div>
+        <div class="herr">
+          <button id="cNuevo">Cuadro nuevo</button>
+          <button id="cDup">Duplicar cuadro</button>
+          <button id="cBorrar">Quitar cuadro</button>
+        </div>
+        <div class="fila">
+          <button id="bGuardar" class="cromo">Guardar en mis diseños</button>
+          <button id="bNuevo" class="boton">Lienzo en blanco</button>
+        </div>
+      </div>
+
+      <div id="p-importar" class="panel" role="tabpanel" aria-labelledby="t-importar" hidden>
+        <label class="archivo"><input id="archivo" type="file" accept="image/png,image/gif,image/jpeg,image/webp,image/bmp"><span id="txtArchivo">Elegir imagen o GIF</span></label>
+        <p class="texto">Acepta PNG, JPG, GIF y WEBP. La visera tiene 12 LEDs de alto y cada uno solo prende o apaga, así que la imagen se reduce a 12 px de alto en blanco y negro. Se ven bien los logos, siluetas, iconos y pixel art con fondo oscuro; las fotos se vuelven manchas. Si queda más ancha que 48 px, se vuelve una tira que se desplaza.</p>
+        <div class="campo"><label for="umbral">Umbral</label><input id="umbral" type="range" min="10" max="245" value="128"><output id="umbralV">128</output></div>
+        <label class="check"><input id="invertir" type="checkbox"> Encender lo oscuro en vez de lo claro</label>
+      </div>
+
+      <div id="p-ajustes" class="panel" role="tabpanel" aria-labelledby="t-ajustes" hidden>
+        <div class="campo"><label for="brillo">Brillo</label><input id="brillo" type="range" min="1" max="100" value="80"><output id="brilloV">80</output></div>
+        <div class="campo"><label for="vel">Desplazamiento</label><input id="vel" type="range" min="0" max="100" value="50"><output id="velV">50</output></div>
+        <div class="campo"><label for="fps">Cuadros/seg</label><input id="fps" type="range" min="1" max="6" value="3"><output id="fpsV">3</output></div>
+        <label class="check"><input id="rapido" type="checkbox"> Envío rápido (para animaciones con mucho movimiento)</label>
+        <p class="texto">El brillo y el desplazamiento se aplican al casco en cuanto mueves el control. La animación corre mientras esta página siga abierta y la pantalla encendida.</p>
+        <details><summary>Registro de Bluetooth</summary><pre id="registro"></pre></details>
+        <p class="creditos">Iconos de la galería basados en pixelarticons de Gerrit Halfmann (licencia MIT). Fuente de texto Spleen 6×12 de Frederic Cambus (licencia BSD de 2 cláusulas). Los avisos completos están en el código de esta página.</p>
+      </div>
+    </section>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script>
+// ---------- AES-128 (ECB, un bloque) ----------
+const AES = (() => {
+  const S = new Uint8Array(256), SI = new Uint8Array(256);
+  let p = 1, q = 1;
+  const rotl = (x, s) => ((x << s) | (x >> (8 - s))) & 255;
+  do {
+    p = (p ^ (p << 1) ^ (p & 0x80 ? 0x1b : 0)) & 255;
+    q ^= q << 1; q ^= q << 2; q ^= q << 4; q &= 255; if (q & 0x80) q ^= 0x09;
+    S[p] = (q ^ rotl(q, 1) ^ rotl(q, 2) ^ rotl(q, 3) ^ rotl(q, 4) ^ 0x63) & 255;
+  } while (p !== 1);
+  S[0] = 0x63;
+  for (let i = 0; i < 256; i++) SI[S[i]] = i;
+  const xt = a => ((a << 1) ^ (a & 0x80 ? 0x1b : 0)) & 255;
+  const mul = (a, b) => { let r = 0; while (b) { if (b & 1) r ^= a; a = xt(a); b >>= 1; } return r; };
+
+  function expand(key) {
+    const w = new Uint8Array(176); w.set(key);
+    let rcon = 1;
+    for (let i = 16; i < 176; i += 4) {
+      let t = w.slice(i - 4, i);
+      if (i % 16 === 0) {
+        t = Uint8Array.of(S[t[1]] ^ rcon, S[t[2]], S[t[3]], S[t[0]]);
+        rcon = xt(rcon);
+      }
+      for (let j = 0; j < 4; j++) w[i + j] = w[i - 16 + j] ^ t[j];
+    }
+    return w;
+  }
+  const add = (s, w, r) => { for (let i = 0; i < 16; i++) s[i] ^= w[r * 16 + i]; };
+
+  function enc(w, inp) {
+    const s = Uint8Array.from(inp); add(s, w, 0);
+    for (let r = 1; r <= 10; r++) {
+      for (let i = 0; i < 16; i++) s[i] = S[s[i]];
+      const t = s.slice();
+      for (let c = 0; c < 4; c++) for (let row = 0; row < 4; row++) s[row + 4 * c] = t[row + 4 * ((c + row) % 4)];
+      if (r < 10) for (let c = 0; c < 4; c++) {
+        const [a0, a1, a2, a3] = s.slice(4 * c, 4 * c + 4);
+        s[4 * c] = xt(a0) ^ xt(a1) ^ a1 ^ a2 ^ a3;
+        s[4 * c + 1] = a0 ^ xt(a1) ^ xt(a2) ^ a2 ^ a3;
+        s[4 * c + 2] = a0 ^ a1 ^ xt(a2) ^ xt(a3) ^ a3;
+        s[4 * c + 3] = xt(a0) ^ a0 ^ a1 ^ a2 ^ xt(a3);
+      }
+      add(s, w, r);
+    }
+    return s;
+  }
+  function dec(w, inp) {
+    const s = Uint8Array.from(inp); add(s, w, 10);
+    for (let r = 9; r >= 0; r--) {
+      const t = s.slice();
+      for (let c = 0; c < 4; c++) for (let row = 0; row < 4; row++) s[row + 4 * ((c + row) % 4)] = t[row + 4 * c];
+      for (let i = 0; i < 16; i++) s[i] = SI[s[i]];
+      add(s, w, r);
+      if (r > 0) for (let c = 0; c < 4; c++) {
+        const [a0, a1, a2, a3] = s.slice(4 * c, 4 * c + 4);
+        s[4 * c] = mul(a0, 14) ^ mul(a1, 11) ^ mul(a2, 13) ^ mul(a3, 9);
+        s[4 * c + 1] = mul(a0, 9) ^ mul(a1, 14) ^ mul(a2, 11) ^ mul(a3, 13);
+        s[4 * c + 2] = mul(a0, 13) ^ mul(a1, 9) ^ mul(a2, 14) ^ mul(a3, 11);
+        s[4 * c + 3] = mul(a0, 11) ^ mul(a1, 13) ^ mul(a2, 9) ^ mul(a3, 14);
+      }
+    }
+    return s;
+  }
+  return { expand, enc, dec };
+})();
+
+const LLAVE = AES.expand(Uint8Array.from([0x34,0x52,0x2a,0x5b,0x7a,0x6e,0x49,0x2c,0x08,0x09,0x0a,0x9d,0x8d,0x2a,0x23,0xf8]));
+function cifrar(bytes) { const b = new Uint8Array(16); b.set(bytes.slice(0, 16)); return AES.enc(LLAVE, b); }
+function descifrar(bytes) { return AES.dec(LLAVE, Uint8Array.from(bytes).slice(0, 16)); }
+function comando(txt, ...args) {
+  const c = [...txt].map(ch => ch.charCodeAt(0)).concat(args.map(a => a & 255));
+  return Uint8Array.from([c.length, ...c]);
+}
+
+// ---------- Empaquetado 12 filas (igual que la app) ----------
+const FILAS = 12, COLS = 48;
+// cols: Array de Uint8Array(12), fila 0 = arriba
+function empaquetar(cols) {
+  const c = cols.slice();
+  if (c.length % 2) c.push(new Uint8Array(FILAS));
+  const out = [];
+  for (let i = 0; i < c.length; i += 2) {
+    const a = c[i], b = c[i + 1];
+    let b0 = 0, b1 = 0, b2 = 0;
+    for (let r = 0; r < 8; r++) { if (a[r]) b0 |= 0x80 >> r; if (b[r]) b2 |= 0x80 >> r; }
+    for (let r = 8; r < 12; r++) { if (a[r]) b1 |= 0x80 >> (r - 8); if (b[r]) b1 |= 0x08 >> (r - 8); }
+    out.push(b0, b1, b2);
+  }
+  return Uint8Array.from(out);
+}
+// Paquete en vivo (verificado en el casco): fila 0 = bit 15
+function paqueteVivo(x, col) {
+  let w = 0;
+  for (let r = 0; r < FILAS; r++) if (col[r]) w |= 1 << (15 - r);
+  return Uint8Array.from([3, x, (w >> 8) & 255, w & 255]);
+}
+
+// ---------- Lector de GIF (frames compuestos RGBA) ----------
+function leerGIF(buf) {
+  const d = new Uint8Array(buf); let p = 0;
+  const u16 = () => { const v = d[p] | (d[p + 1] << 8); p += 2; return v; };
+  if (String.fromCharCode(...d.slice(0, 3)) !== 'GIF') throw new Error('No es un GIF');
+  p = 6;
+  const W = u16(), H = u16(), f = d[p++]; p += 2;
+  let gct = null;
+  if (f & 0x80) { const n = 3 * (1 << ((f & 7) + 1)); gct = d.slice(p, p + n); p += n; }
+  const lienzo = new Uint8ClampedArray(W * H * 4);
+  const frames = [];
+  let gce = { disp: 0, trans: -1, delay: 100 };
+  while (p < d.length) {
+    const b = d[p++];
+    if (b === 0x3b) break;
+    if (b === 0x21) {
+      const lab = d[p++];
+      if (lab === 0xf9) {
+        p++; const pk = d[p++]; const dl = u16(); const ti = d[p++]; p++;
+        gce = { disp: (pk >> 2) & 7, trans: pk & 1 ? ti : -1, delay: (dl || 10) * 10 };
+      } else { while (d[p]) p += d[p] + 1; p++; }
+      continue;
+    }
+    if (b !== 0x2c) break;
+    const x = u16(), y = u16(), w = u16(), h = u16(), lf = d[p++];
+    let ct = gct;
+    if (lf & 0x80) { const n = 3 * (1 << ((lf & 7) + 1)); ct = d.slice(p, p + n); p += n; }
+    const inter = !!(lf & 0x40), min = d[p++];
+    const datos = []; while (d[p]) { datos.push(...d.slice(p + 1, p + 1 + d[p])); p += d[p] + 1; } p++;
+    const idx = lzw(min, datos, w * h);
+    const previo = gce.disp === 3 ? lienzo.slice() : null;
+    const filas = [];
+    if (inter) { for (const [s, st] of [[0, 8], [4, 8], [2, 4], [1, 2]]) for (let r = s; r < h; r += st) filas.push(r); }
+    else for (let r = 0; r < h; r++) filas.push(r);
+    for (let i = 0; i < h; i++) {
+      const fy = y + filas[i]; if (fy >= H) continue;
+      for (let j = 0; j < w; j++) {
+        const fx = x + j; if (fx >= W) continue;
+        const ci = idx[i * w + j]; if (ci === gce.trans || !ct) continue;
+        const o = (fy * W + fx) * 4;
+        lienzo[o] = ct[ci * 3]; lienzo[o + 1] = ct[ci * 3 + 1]; lienzo[o + 2] = ct[ci * 3 + 2]; lienzo[o + 3] = 255;
+      }
+    }
+    frames.push({ rgba: lienzo.slice(), delay: gce.delay });
+    if (gce.disp === 2) for (let i = 0; i < h; i++) for (let j = 0; j < w; j++) {
+      const fy = y + i, fx = x + j; if (fy < H && fx < W) lienzo.fill(0, (fy * W + fx) * 4, (fy * W + fx) * 4 + 4);
+    }
+    else if (previo) lienzo.set(previo);
+    gce = { disp: 0, trans: -1, delay: 100 };
+  }
+  return { W, H, frames };
+}
+function lzw(min, data, n) {
+  const clear = 1 << min, eoi = clear + 1;
+  let size = min + 1, mask = (1 << size) - 1, next = eoi + 1;
+  const pre = new Int16Array(4096), suf = new Uint8Array(4096), pila = new Uint8Array(4097);
+  for (let i = 0; i < clear; i++) suf[i] = i;
+  const out = new Uint8Array(n);
+  let op = 0, bits = 0, cur = 0, pos = 0, prev = -1, first = 0;
+  while (op < n) {
+    while (bits < size) { if (pos >= data.length) return out; cur |= data[pos++] << bits; bits += 8; }
+    let code = cur & mask; cur >>>= size; bits -= size;
+    if (code === clear) { size = min + 1; mask = (1 << size) - 1; next = eoi + 1; prev = -1; continue; }
+    if (code === eoi) break;
+    if (prev === -1) { out[op++] = suf[code]; prev = code; first = code; continue; }
+    const entrada = code; let sp = 0;
+    if (code >= next) { pila[sp++] = first; code = prev; }
+    while (code > eoi) { pila[sp++] = suf[code]; code = pre[code]; }
+    first = suf[code]; pila[sp++] = first;
+    if (next < 4096) { pre[next] = prev; suf[next] = first; next++; if ((next & mask) === 0 && next < 4096) { size++; mask = (1 << size) - 1; } }
+    prev = entrada;
+    while (sp > 0 && op < n) out[op++] = pila[--sp];
+  }
+  return out;
+}
+
+// RGBA (W x H) -> columnas de 12 filas (escala al alto 12, vecino más cercano)
+function rgbaAColumnas(rgba, W, H, umbral = 128, invertir = false) {
+  const ancho = H === FILAS ? W : Math.max(1, Math.round(W * FILAS / H));
+  const cols = [];
+  for (let x = 0; x < ancho; x++) {
+    const col = new Uint8Array(FILAS), sx = Math.min(W - 1, Math.floor((x + 0.5) * W / ancho));
+    for (let y = 0; y < FILAS; y++) {
+      const sy = Math.min(H - 1, Math.floor((y + 0.5) * H / FILAS)), o = (sy * W + sx) * 4;
+      const a = rgba[o + 3] / 255;
+      const on = Math.max(rgba[o], rgba[o + 1], rgba[o + 2]) * a > umbral;
+      col[y] = on !== invertir ? 1 : 0;
+    }
+    cols.push(col);
+  }
+  return cols;
+}
+
+if (typeof module !== 'undefined') module.exports = { AES, cifrar, descifrar, comando, empaquetar, paqueteVivo, leerGIF, rgbaAColumnas };
+
+</script>
+<script>
+const GALERIA = [{"n":"Direccional derecha","fps":5,"r":false,"w":48,"f":["000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","000000000000000000104088050020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","000000000000000000104088050020000000000000000000000104088050020000000000000000000000000000000000000000000000000000000000000000000000000000000000","000000000000000000104088050020000000000000000000000104088050020000000000000000000000104088050020000000000000000000000000000000000000000000000000","000000000000000000104088050020000000000000000000000104088050020000000000000000000000104088050020000000000000000000000104088050020000000000000000"]},{"n":"Direccional izquierda","fps":5,"r":false,"w":48,"f":["000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020050088104000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000020050088104000000000000000000000020050088104000000000000000","000000000000000000000000000000000000000000000000000020050088104000000000000000000000020050088104000000000000000000000020050088104000000000000000","000000000000000000020050088104000000000000000000000020050088104000000000000000000000020050088104000000000000000000000020050088104000000000000000"]},{"n":"Ojos","fps":4,"r":false,"w":48,"f":["0000000000000000000000000000003fc4024024f24f24024023fc0000000000000000000000000000000000003fc4024024f24f24024023fc000000000000000000000000000000","0000000000000000000000000000003fc4f24f24024024024023fc0000000000000000000000000000000000003fc4f24f24024024024023fc000000000000000000000000000000","0000000000000000000000000000003fc4024024f24f24024023fc0000000000000000000000000000000000003fc4024024f24f24024023fc000000000000000000000000000000","0000000000000000000000000000003fc4024024024024f24f23fc0000000000000000000000000000000000003fc4024024024024f24f23fc000000000000000000000000000000","0000000000000000000000000000003fc4024024f24f24024023fc0000000000000000000000000000000000003fc4024024f24f24024023fc000000000000000000000000000000","000000000000000000000000000000020020020020020020020020000000000000000000000000000000000000020020020020020020020020000000000000000000000000000000","0000000000000000000000000000003fc4024024f24f24024023fc0000000000000000000000000000000000003fc4024024f24f24024023fc000000000000000000000000000000"]},{"n":"Mirada","fps":4,"r":false,"w":48,"f":["0000000000000000000000000600901081082642f42b42641081080900600000000000000000000000000600901081082642f42b4264108108090060000000000000000000000000","0000000000000000000000000604903081080e42742b42541081040920600000000000000000000000000604903081080e42742b4254108104092060000000000000000000000000"]},{"n":"Latido","fps":4,"r":false,"w":48,"f":["0000000000000000001c03e03f01f80fc1f83f03e01c00000000000000000000000000000000000000000000000000000001c03e03f01f80fc1f83f03e01c0000000000000000000","0000000000000000000c01e01f00f807c0f81f01e00c00000000000000000000000000000000000000000000000000000000c01e01f00f807c0f81f01e00c0000000000000000000","0000000000000000001c03e03f01f80fc1f83f03e01c00000000000000000000000000000000000000000000000000000001c03e03f01f80fc1f83f03e01c0000000000000000000","0000000000000000000c01e01f00f807c0f81f01e00c00000000000000000000000000000000000000000000000000000000c01e01f00f807c0f81f01e00c0000000000000000000"]},{"n":"Corazones","fps":3,"r":false,"w":48,"f":["0000000001c02204104082041022044084102201c0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","0000000001c02204104082041022044084102201c01c02204104082041022044084102201c0000000000000000000000000000000000000000000000000000000000000000000000","0000000001c02204104082041022044084102201c01c02204104082041022044084102201c01c02204104082041022044084102201c0000000000000000000000000000000000000","0000000001c02204104082041022044084102201c01c02204104082041022044084102201c01c02204104082041022044084102201c01c02204104082041022044084102201c0000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","0000000001c02204104082041022044084102201c01c02204104082041022044084102201c01c02204104082041022044084102201c01c02204104082041022044084102201c0000"]},{"n":"Bailarines","fps":3,"r":false,"w":48,"f":["0000000000000000004002001007fe7101fe1002004000000000000000000000400801007fe7101fe1000800400000000000000000004002001007fe7101fe100200400000000000","0000000000000000000400801007fe7101fe1000800400000000000000000004002001007fe7101fe1002004000000000000000000000400801007fe7101fe100080040000000000"]},{"n":"Robot","fps":3,"r":false,"w":48,"f":["0000000000000000000000000000000000000000000000000000000200fc10210215211a31a55a5121020fc020000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000200fc10210215210a30a5525421020fc020000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000200fc10210214a11231254a5021020fc020000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000200fc10210215210a30a5525421020fc020000000000000000000000000000000000000000000000000000000"]},{"n":"Emociones","fps":2,"r":false,"w":48,"f":["0000000000000000000000000000000000000000000000000000000001f820440249240a40a48a4122041f8000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000001f825c06c07c03802003805c26c1f8000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000001f820440248a45241245248a2041f8000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000003e041041c4c240c4024cc40241c4103e0000000000000000000000000000000000000000000000000000000"]},{"n":"Rayo","fps":5,"r":false,"w":48,"f":["00000000000000000000000000003005009011021f7c204404805006000000000000000000000000000000003005009011021f7c2044048050060000000000000000000000000000","00000000000000000000000000043025019009025f72201404804406200000000000000000000000000000043025019009025f722014048044062000000000000000000000000000","00000000000000000000000000003005009011021f7c204404805006000000000000000000000000000000003005009011021f7c2044048050060000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]},{"n":"Pulgar arriba","fps":3,"r":false,"w":48,"f":["00000000000000000000000000000000000000000000000000000000003c04207e0821022024c234204c030000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","00000000000000000000000000000000000000000000000000000000003c04207e0821022024c234204c030000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000020010008010020040080100000000000000000000000000000000000000000000000000000000000000"]},{"n":"Batería","fps":3,"r":false,"w":48,"f":["0000000000000000000000000000000000000000000000000000000000f81041041041041041041041fc070000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000f81041741041041041041041fc070000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000f81041741041741041041041fc070000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000f81041741041741041741041fc070000000000000000000000000000000000000000000000000000000000"]},{"n":"Volumen","fps":3,"r":false,"w":48,"f":["0000000000000000000000000000000000000000000000000000000000000f00901082047fe000050020050000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000f00901082047fe000060000000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000f00901082047fe0001681080f0000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000f00901082047fe00056a50a4f22041f8000000000000000000000000000000000000000000000000000000"]},{"n":"Clima","fps":2,"r":false,"w":48,"f":["00000000000000000000000000000000000000000000000000000000002002010407008868a088070104020000000000000000000000000000000000000000000000000000000000","00000000000000000000000000000000000000000000000000000000040c21209212a122d1208c040200420020000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000380440840841442042042041240c4044038000000000000000000000000000000000000000000000000000000","00000000000000000000000000000000000000000000000000000000000c01219222a42259264c4400901e0000000000000000000000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000001f02084045c2622412012012024078000000000000000000000000000000000000000000000000000000000"]},{"n":"Cargando","fps":4,"r":false,"w":48,"f":["0000000000001f81081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081f8000000000000","0000000000001f81081681681681681681081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081081f8000000000000","0000000000001f81081681681681681681681681681681681081081081081081081081081081081081081081081081081081081081081081081081081081081081f8000000000000","0000000000001f81081681681681681681681681681681681681681681681681081081081081081081081081081081081081081081081081081081081081081081f8000000000000","0000000000001f81081681681681681681681681681681681681681681681681681681681681681081081081081081081081081081081081081081081081081081f8000000000000","0000000000001f81081681681681681681681681681681681681681681681681681681681681681681681681681681081081081081081081081081081081081081f8000000000000","0000000000001f81081681681681681681681681681681681681681681681681681681681681681681681681681681681681681681681081081081081081081081f8000000000000","0000000000001f81081681681681681681681681681681681681681681681681681681681681681681681681681681681681681681681681681681681681081081f8000000000000"]},{"n":"Onda","fps":4,"r":true,"w":48,"f":["03001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c0","00600600300300300600600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c","00300300600600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c006006003","00600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c006006003003003006","0300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c018","3003006006006003003001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c0180","6006003003001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c0180300300600","3001800c006001800c00600600300300300600600c0180300c01803003006006006003003001800c006001800c00600600300300300600600c0180300c0180300300600600600300"]},{"n":"Lluvia","fps":4,"r":true,"w":48,"f":["000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000e0000000000060000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000070000000000030000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000038000000000018000000000000000000000","00000000000000000000000000000000000000000000000000000000000000000000000000000000018000000000000000000000000001c00000000000c000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000e000000000006000000000000000000000","000000000800000000000800000000000000000000000000000000000000000000000000000000000060000000000000000000000000007000000000003000000000000000000000","000000000c00000000000c00000000000000000000000000000000000000000000000000000000000030000000000000000000000000003000000000001000000000000000000000","000000000600000000000e00000000000000000000000000000000000000000000000000000000000018000000000000000000000000001000000000000000000000000000000000","000000000300000000000f0000000000000000000000000000000000000080000000000000000080000c000000000000000000000800000000000000000000000000000000000000","000000000180000000000f80000000000000000000000000000000000000c00000000000000000c00006000000000000000000800c00800000000000000000000000000000000000","0000000000c00000000007c0000000000000000000000800000000000000e00000000000000000e00003000000000000000000c00e00c00000000000000000000000000000000000","0000000000600000000003e0000000000000000800000c00000000000000700000000000000000f00801000000000000000000e00700e00800000000000800000000000000000000"]},{"n":"Ecualizador","fps":3,"r":true,"w":48,"f":["00f00f00f000fffffffff0000ff0ff0ff0000030030030003ff3ff3ff000fffffffff0007ff7ff7ff000fffffffff00000f00f00f000fffffffff00001f01f01f00007f07f07f000","003003003000fffffffff00003f03f03f00000f00f00f0007ff7ff7ff000fffffffff0000ff0ff0ff000fffffffff0000010010010003ff3ff3ff00007f07f07f00000f00f00f000","0010010010001ff1ff1ff00001f01f01f00001f01f01f000fffffffff000fffffffff0001ff1ff1ff000fffffffff0000030030030007ff7ff7ff0003ff3ff3ff00003f03f03f000","00300300300007f07f07f00000f00f00f0000030030030001ff1ff1ff0003ff3ff3ff0003ff3ff3ff0003ff3ff3ff000001001001000fffffffff0007ff7ff7ff0001ff1ff1ff000","0010010010000ff0ff0ff00003f03f03f0000070070070007ff7ff7ff0001ff1ff1ff000fffffffff000fffffffff000003003003000fffffffff0001ff1ff1ff0000ff0ff0ff000","00f00f00f00001f01f01f00001f01f01f00001f01f01f000fffffffff000fffffffff0003ff3ff3ff000fffffffff000001001001000fffffffff0007ff7ff7ff0003ff3ff3ff000","0010010010000ff0ff0ff0000ff0ff0ff000007007007000fffffffff000fffffffff0001ff1ff1ff0007ff7ff7ff0000010010010001ff1ff1ff000fffffffff000fffffffff000","00300300300001f01f01f00007f07f07f000001001001000fffffffff0003ff3ff3ff00003f03f03f0003ff3ff3ff0000030030030003ff3ff3ff0001ff1ff1ff0001ff1ff1ff000","00f00f00f00007f07f07f00000f00f00f000003003003000fffffffff000fffffffff00001f01f01f000fffffffff000001001001000fffffffff00007f07f07f00003f03f03f000","00700700700000f00f00f000001001001000001001001000fffffffff000fffffffff0000030030030003ff3ff3ff0000030030030007ff7ff7ff0001ff1ff1ff00001f01f01f000","00100100100007f07f07f0000010010010000010010010007ff7ff7ff0007ff7ff7ff0000010010010007ff7ff7ff000007007007000fffffffff0007ff7ff7ff00003f03f03f000","00f00f00f0001ff1ff1ff00000f00f00f0000070070070000ff0ff0ff000fffffffff0000070070070003ff3ff3ff00000f00f00f000fffffffff000fffffffff0001ff1ff1ff000"]},{"n":"Tira de iconos","fps":0,"r":false,"w":288,"f":["0000000000000000000000000000000000000000000000000000000000000000000000000001f82042242742242042442142041f80000000000000000001c01203f020820a20e20a3f01201c00000000000000000000003f210a08a10a20a10a08a10a3f200000000000000000018014e13210460880860410213214e18000000000000000000007808410260e19e04e0820440380000000000000000001c02204104082041022044084102201c00000000000000003e041041c4c240c4024cc40241c4103e00000000000000000180240241f82002182242241f800000000000000000000003005009011021f7c20440480500600000000000000000001c02a04909c8eb488aeb49c84902a01c00000000000000000000000000083f840e3f80080000000000000000000000003e04104084044024024044084103e00000000000000000001e02104c84e446240a4e44c82101e000000000000000000001007c0822b22821820b208208207c0100000000000000001f825c06c07c03802003805c26c1f8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]},{"n":"Tira HOLA","fps":0,"r":false,"w":108,"f":["0000000000000000000000000000000000000000000000000000000000000000000000003f80800800803f80001f02082082081f00003f80080080080080001f82402402401f8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}];
+
+</script>
+<script>
+const FUENTE = {"32":"000000000000000000","33":"0000007e8000000000","34":"000700000700000000","35":"1103f81103f8110000","36":"308488ffc488470000","37":"000318060180630000","38":"0303484c84a8310028","39":"000000700000000000","40":"0003f0408804804000","41":"0008048044083f0000","42":"0401500e00e0150040","43":"0400401f0040040000","44":"000004018000000000","45":"040040040040040000","46":"000000008000000000","47":"00c0300c0300c00000","48":"3f04484885083f0000","49":"0002087f8008000000","50":"238448448448388000","51":"210408488488370000","52":"7e00200201f8020000","53":"788488488488470000","54":"3f0488488488070000","55":"600400478480700000","56":"370488488488370000","57":"3804484484483f0000","58":"000000088000000000","59":"000004098000000000","60":"0000c0120210408000","61":"0a00a00a00a00a0000","62":"0004082101200c0000","63":"200400468480300000","64":"3f04084e84e83e8000","65":"3f84404404403f8000","66":"7f8488488488370000","67":"3f0408408408408000","68":"7f84084084083f0000","69":"3f0488488488408000","70":"3f8480480480400000","71":"3f04084884884f8000","72":"7f80800800807f8000","73":"0004087f8408000000","74":"0084087f0400000000","75":"7f8080080140638000","76":"7f0008008008008000","77":"7f83001803007f8000","78":"7f83000c00307f8000","79":"3f04084084083f0000","80":"7f8440440440380000","81":"3f040840840c3f4000","82":"7f84404404403b8000","83":"308488488488470000","84":"4004007f8400400000","85":"7f00080080087f8000","86":"7e00180180187e0000","87":"7f80300600307f8000","88":"638140080140638000","89":"7880480480487f0000","90":"438448488508608000","91":"000ffc804804804000","92":"c003000c003000c000","93":"000804804804ffc000","94":"100200400200100000","95":"004004004004004000","96":"000400200100000000","97":"0301481481480f8000","98":"7f81081081080f0000","99":"0f0108108108108000","100":"0f01081081087f8000","101":"0f01281281281e8000","102":"0803f8480480400000","103":"0f210a10a10a1f4000","104":"7f81001001000f8000","105":"0001005f8008000000","106":"0000040045f8000000","107":"7f80400a0110008000","108":"0007f0008008000000","109":"1f81001e01000f8000","110":"1f81001001000f8000","111":"0f01081081080f0000","112":"1ff1081081080f0000","113":"0f01081081081ff000","114":"0f8100100100180000","115":"088148148148130000","116":"1007f0108008000000","117":"1f00080080081f8000","118":"1e00100080101e0000","119":"1f80300600301f8000","120":"198060060060198000","121":"1f10090090091fe000","122":"108118128148188000","123":"0c00c0738804804000","124":"000000ffc000000000","125":"0008048047380c00c0","126":"020040020020040000","160":"000000000000000000","161":"0000005f8000000000","162":"0f01083fc108108000","163":"0583e8448448208000","164":"000168090090168000","165":"4002a01f82a0400000","166":"000000f3c000000000","167":"00027258948d272000","168":"000400000400000000","169":"3f04084e85284083f0","170":"0000905505503d0000","171":"060090108060090108","172":"040040040040070000","173":"000040040040000000","174":"3f04085e85484a83f0","175":"000400400400000000","176":"000300480480300000","177":"0880883e8088088000","178":"0002204604a0320000","179":"0002404205202c0000","180":"000100200400000000","181":"1fe0080081f0008000","182":"3004807f84007f8000","183":"000000040000000000","184":"000001006000000000","185":"0002207e0020000000","186":"000390450450390000","187":"108090060108090060","188":"408f9003c04408f104","189":"408f90029053095109","190":"488850a7c5c408f104","191":"030048588008010000","192":"1f8a406402401f8000","193":"1f8240640a401f8000","194":"1f8640a406401f8000","195":"5f8a406406409f8000","196":"1f8a40240a401f8000","197":"1f8640a406401f8000","198":"3f84407f8448448000","199":"3f040940e408408000","200":"1f0a48648248208000","201":"1f0248648a48208000","202":"1f0648a48648208000","203":"1f0a48248a48208000","204":"000a087f8208000000","205":"0002087f8a08000000","206":"000608bf8608000000","207":"000a083f8a08000000","208":"0807f84884083f0000","209":"7f8980460418bf8000","210":"1f0a086082081f0000","211":"1f0208608a081f0000","212":"1f0608a086081f0000","213":"5f0a086086089f0000","214":"1f0a08208a081f0000","215":"0001200c00c0120000","216":"3f44284c8508bf0000","217":"3f08084080083f8000","218":"3f00084088083f8000","219":"3f04088084083f8000","220":"3f08080088083f8000","221":"3880484488483f0000","222":"3fc1081081080f0000","223":"3f8410488348030000","224":"0301489485480f8000","225":"0301485489480f8000","226":"0305489485480f8000","227":"4309485485488f8000","228":"0305481485480f8000","229":"030548b485480f8000","230":"1301480f81281e8000","231":"0f010910e108108000","232":"0f01289285281e8000","233":"0f01285289281e8000","234":"0f05289285281e8000","235":"0f05281285281e8000","236":"0001009f8408000000","237":"0001005f8808000000","238":"0005009f8408000000","239":"0005001f8408000000","240":"af0508b081080f0000","241":"5f89005005008f8000","242":"0f01089085080f0000","243":"0f01085089080f0000","244":"0f05089085080f0000","245":"4f09085085088f0000","246":"0f05081085080f0000","247":"040040150040040000","248":"0f41281481882f0000","249":"1f00088084081f8000","250":"1f00084088081f8000","251":"1f04088084081f8000","252":"1f04080084081f8000","253":"1f10094098091fe000","254":"7fe1081081080f0000","255":"1f14090094091fe000"};
+
+</script>
+<!--
+Avisos de licencia
+==================
+Spleen (fuente 6x12): Copyright (c) 2018-2026, Frederic Cambus. All rights reserved.
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+  * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+pixelarticons (iconos de la galería): MIT License. Copyright (c) 2019 Gerrit Halfmann.
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+-->
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reducir = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+function registro(...a) { const r = $('registro'); r.textContent += a.join(' ') + '\n'; r.scrollTop = r.scrollHeight; }
+let tToast;
+function aviso(msg, error) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  if (error) t.dataset.error = 1; else delete t.dataset.error;
+  clearTimeout(tToast); tToast = setTimeout(() => t.hidden = true, error ? 5000 : 2500);
+}
+
+// ================= Modelo =================
+// Pieza: { n: nombre, w: ancho, frames: [Uint8Array(w*12)] (x*12+y), fps, r: rápido, origen }
+const vacia = (w = COLS) => new Uint8Array(w * FILAS);
+const px = (f, x, y) => f[x * FILAS + y];
+const colsDe = (f, w) => Array.from({ length: w }, (_, x) => f.subarray(x * FILAS, x * FILAS + FILAS));
+function deHex(hex) {
+  const w = hex.length / 3, f = vacia(w);
+  for (let x = 0; x < w; x++) { const v = parseInt(hex.substr(x * 3, 3), 16); for (let y = 0; y < FILAS; y++) if (v & (1 << (11 - y))) f[x * FILAS + y] = 1; }
+  return f;
+}
+function aHex(f, w) {
+  let s = '';
+  for (let x = 0; x < w; x++) { let v = 0; for (let y = 0; y < FILAS; y++) if (px(f, x, y)) v |= 1 << (11 - y); s += v.toString(16).padStart(3, '0'); }
+  return s;
+}
+const piezaDe = g => ({ n: g.n, w: g.w, fps: g.fps || 3, r: !!g.r, frames: g.f.map(deHex) });
+const serializar = p => ({ n: p.n, w: p.w, fps: p.fps, r: p.r, f: p.frames.map(f => aHex(f, p.w)) });
+
+function carita() {
+  const a = vacia(), b = vacia(), on = (f, x, y) => f[x * FILAS + y] = 1;
+  for (const f of [a, b]) { for (let x = 20; x <= 27; x++) on(f, x, 9); on(f, 19, 8); on(f, 28, 8); }
+  for (const ox of [17, 27]) { for (let y = 2; y <= 5; y++) for (let x = ox; x < ox + 4; x++) on(a, x, y); for (let x = ox; x < ox + 4; x++) on(b, x, 4); }
+  return { n: 'Carita', w: COLS, fps: 3, r: false, frames: [a, a.slice(), a.slice(), b] };
+}
+
+let P = (() => { const s = store.get('casco.actual', null); try { return s ? piezaDe(s) : carita(); } catch (e) { return carita(); } })();
+let act = 0, modo = 1, mios = store.get('casco.mios', []), seleccion = store.get('casco.sel', null);
+const guardarActual = () => store.set('casco.actual', serializar(P));
+
+// ================= Visera =================
+const vis = $('visor'), vc = vis.getContext('2d');
+const COLOR = (() => { // degradado real del casco, por columna
+  const st = [[0, [224, 75, 255]], [13, [196, 64, 255]], [16, [59, 91, 255]], [29, [80, 120, 255]], [32, [232, 240, 255]], [37, [205, 255, 232]], [39, [47, 227, 119]], [47, [40, 220, 110]]];
+  return Array.from({ length: COLS }, (_, x) => { for (let i = 1; i < st.length; i++) if (x <= st[i][0]) { const [x0, c0] = st[i - 1], [x1, c1] = st[i], t = (x - x0) / (x1 - x0); return c0.map((v, k) => Math.round(v + (c1[k] - v) * t)); } return st[st.length - 1][1]; });
+})();
+const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+function formaVisera(g, W, H) { // visera con borde inferior en curva, como la del casco
+  g.beginPath();
+  g.moveTo(W * 0.06, H * 0.16);
+  g.quadraticCurveTo(W * 0.5, H * -0.04, W * 0.94, H * 0.16);
+  g.quadraticCurveTo(W * 1.0, H * 0.22, W * 0.985, H * 0.5);
+  g.quadraticCurveTo(W * 0.97, H * 0.86, W * 0.86, H * 0.93);
+  g.bezierCurveTo(W * 0.68, H * 1.03, W * 0.6, H * 0.8, W * 0.5, H * 0.84);
+  g.bezierCurveTo(W * 0.4, H * 0.8, W * 0.32, H * 1.03, W * 0.14, H * 0.93);
+  g.quadraticCurveTo(W * 0.03, H * 0.86, W * 0.015, H * 0.5);
+  g.quadraticCurveTo(W * 0.0, H * 0.22, W * 0.06, H * 0.16);
+  g.closePath();
+}
+let desplaz = 0;
+function pintarVisera() {
+  const W = vis.width, H = vis.height, f = P.frames[act];
+  vc.clearRect(0, 0, W, H);
+  vc.save(); formaVisera(vc, W, H);
+  const fondo = vc.createLinearGradient(0, 0, 0, H); fondo.addColorStop(0, '#1a1f36'); fondo.addColorStop(.55, '#0b0e1c'); fondo.addColorStop(1, '#05060d');
+  vc.fillStyle = fondo; vc.fill(); vc.clip();
+  // zona de LEDs
+  const x0 = W * 0.115, y0 = H * 0.25, ancho = W * 0.77, paso = ancho / COLS, alto = paso * FILAS, lado = paso * 0.5;
+  for (let x = 0; x < COLS; x++) {
+    const sx = P.w > COLS ? (x + desplaz) % P.w : x;
+    for (let y = 0; y < FILAS; y++) {
+      const cx = x0 + x * paso + paso / 2, cy = y0 + y * paso + paso / 2;
+      if (sx < P.w && px(f, sx, y)) {
+        vc.shadowColor = rgb(COLOR[x], .9); vc.shadowBlur = paso * 0.9;
+        vc.fillStyle = rgb(COLOR[x]); vc.fillRect(cx - lado / 2, cy - lado / 2, lado, lado);
+      } else {
+        vc.shadowBlur = 0; vc.fillStyle = 'rgba(120,130,170,.10)'; vc.fillRect(cx - lado * 0.35, cy - lado * 0.35, lado * 0.7, lado * 0.7);
+      }
+    }
+  }
+  vc.shadowBlur = 0;
+  // reflejo del cristal
+  const brillo = vc.createLinearGradient(0, 0, W * 0.6, H);
+  brillo.addColorStop(0, 'rgba(255,255,255,.16)'); brillo.addColorStop(.28, 'rgba(255,255,255,.03)'); brillo.addColorStop(.29, 'rgba(255,255,255,0)');
+  vc.fillStyle = brillo; vc.fillRect(0, 0, W, H);
+  vc.restore();
+  // marco cromado
+  formaVisera(vc, W, H);
+  const marco = vc.createLinearGradient(0, 0, W, H); marco.addColorStop(0, '#f2f4f8'); marco.addColorStop(.35, '#8f96a3'); marco.addColorStop(.6, '#e3e7ed'); marco.addColorStop(1, '#6f7682');
+  vc.lineWidth = 5; vc.strokeStyle = marco; vc.stroke();
+}
+
+let tPlay = null, pausado = reducir;
+function reproducir() {
+  clearInterval(tPlay); tPlay = null;
+  const tira = P.w > COLS && P.frames.length === 1, anim = P.frames.length > 1;
+  $('btnPausa').hidden = !(tira || anim);
+  $('btnPausa').textContent = pausado ? 'Reproducir' : 'Pausar';
+  $('btnPausa').setAttribute('aria-pressed', pausado);
+  if (!pausado && !animando && (tira || anim)) {
+    tPlay = setInterval(() => {
+      if (tira) desplaz = (desplaz + 1) % P.w; else act = (act + 1) % P.frames.length;
+      pintarVisera(); marcarCuadro();
+    }, tira ? 70 : 1000 / P.fps);
+  }
+  pintarVisera();
+}
+$('btnPausa').onclick = () => { pausado = !pausado; reproducir(); };
+
+function infoPieza() {
+  $('nomPieza').textContent = P.n || 'Sin nombre';
+  const tira = P.w > COLS;
+  $('detPieza').textContent = tira ? `Tira de ${P.w} columnas` : P.frames.length > 1 ? `${P.frames.length} cuadros a ${P.fps} por segundo` : 'Imagen fija';
+}
+
+// ================= Miniaturas =================
+function miniatura(p, f, alto = 36) {
+  const c = document.createElement('canvas'), w = Math.min(p.w, 96);
+  c.width = w * 3; c.height = FILAS * 3;
+  const g = c.getContext('2d'); g.fillStyle = '#0b0e1c'; g.fillRect(0, 0, c.width, c.height);
+  for (let x = 0; x < w; x++) for (let y = 0; y < FILAS; y++) if (px(f, x, y)) { g.fillStyle = rgb(COLOR[x % COLS]); g.fillRect(x * 3, y * 3, 2, 2); }
+  return c;
+}
+function cuadroRepresentativo(p) { // el cuadro con más LEDs encendidos
+  let best = 0, max = -1; p.frames.forEach((f, i) => { const s = f.reduce((a, b) => a + b, 0); if (s > max) { max = s; best = i; } }); return p.frames[best];
+}
+function tarjeta(p, id, quitar) {
+  const b = document.createElement('div');
+  b.className = 'mini'; b.tabIndex = 0; b.setAttribute('role', 'button'); b.dataset.id = id;
+  b.setAttribute('aria-current', seleccion === id);
+  b.appendChild(miniatura(p, cuadroRepresentativo(p)));
+  const s = document.createElement('span'); s.textContent = p.n;
+  const em = document.createElement('em'); em.textContent = p.w > COLS ? '  tira' : p.frames.length > 1 ? `  ${p.frames.length} cuadros` : '';
+  s.appendChild(em); b.appendChild(s);
+  const elegir = () => cargarPieza(p, id);
+  b.onclick = elegir; b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elegir(); } };
+  if (quitar) {
+    const x = document.createElement('button'); x.className = 'quitar'; x.textContent = '×'; x.setAttribute('aria-label', 'Quitar ' + p.n);
+    x.onclick = e => { e.stopPropagation(); quitar(); };
+    b.appendChild(x);
+  }
+  return b;
+}
+const GAL = GALERIA.map(piezaDe);
+function pintarGaleria() {
+  const ga = $('galAnim'), gt = $('galTira'), mi = $('mios');
+  ga.innerHTML = gt.innerHTML = mi.innerHTML = '';
+  GAL.forEach((p, i) => (p.w > COLS ? gt : ga).appendChild(tarjeta(p, 'g' + i)));
+  mios.forEach((s, i) => mi.appendChild(tarjeta(piezaDe(s), 'm' + i, () => {
+    mios.splice(i, 1); store.set('casco.mios', mios); pintarGaleria(); aviso('Diseño quitado');
+  })));
+  $('sinMios').hidden = mios.length > 0;
+}
+function cargarPieza(p, id) {
+  if (animando) { aviso('Detén la animación antes de cambiar de pieza'); return; }
+  P = { n: p.n, w: p.w, fps: p.fps, r: p.r, frames: p.frames.map(f => f.slice()) };
+  act = 0; desplaz = 0; deshacer = []; seleccion = id; store.set('casco.sel', id);
+  if (P.w > COLS) elegirModo(3); else elegirModo(1);
+  $('fps').value = P.fps; $('fpsV').value = P.fps; $('rapido').checked = P.r;
+  [...document.querySelectorAll('.mini')].forEach(m => m.setAttribute('aria-current', m.dataset.id === id));
+  todo();
+  if (innerWidth < 900) document.querySelector('.izq').scrollIntoView({ behavior: reducir ? 'auto' : 'smooth', block: 'start' });
+}
+
+// ================= Pestañas =================
+const TABS = ['galeria', 'texto', 'dibujar', 'importar', 'ajustes'];
+function irA(t) {
+  for (const k of TABS) { $('t-' + k).setAttribute('aria-selected', k === t); $('p-' + k).hidden = k !== t; }
+  if (t === 'dibujar') { medirEditor(); pintarEditor(); }
+  store.set('casco.tab', t);
+}
+TABS.forEach((k, i) => {
+  $('t-' + k).onclick = () => irA(k);
+  $('t-' + k).onkeydown = e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { const n = TABS[(i + d + TABS.length) % TABS.length]; irA(n); $('t-' + n).focus(); } };
+});
+
+// ================= Editor =================
+const ed = $('editor'), ec = ed.getContext('2d');
+let herr = 'lapiz', celda = 14, deshacer = [];
+function medirEditor() {
+  const disp = ed.parentElement.clientWidth || 340;
+  celda = Math.max(8, Math.floor(disp / Math.min(P.w, COLS)));
+  ed.width = P.w * celda; ed.height = FILAS * celda;
+  $('hMover').hidden = P.w <= COLS;
+  if (P.w <= COLS && herr === 'mover') setHerr('lapiz');
+}
+function pintarEditor() {
+  if ($('p-dibujar').hidden) return;
+  const f = P.frames[act];
+  ec.fillStyle = '#0b0e1c'; ec.fillRect(0, 0, ed.width, ed.height);
+  for (let x = 0; x < P.w; x++) for (let y = 0; y < FILAS; y++) {
+    ec.fillStyle = px(f, x, y) ? rgb(COLOR[x % COLS]) : ((x + y) % 2 ? '#141a2e' : '#10152a');
+    ec.fillRect(x * celda + 1, y * celda + 1, celda - 2, celda - 2);
+  }
+  ec.fillStyle = 'rgba(215,219,226,.18)';
+  for (let x = 8; x < P.w; x += 8) ec.fillRect(x * celda - .5, 0, 1, ed.height);
+  ec.fillRect(0, 6 * celda - .5, ed.width, 1);
+}
+let trazo = false, valor = 1;
+function celdaDe(e) { const r = ed.getBoundingClientRect(); return [Math.floor((e.clientX - r.left) / (r.width / P.w)), Math.floor((e.clientY - r.top) / (r.height / FILAS))]; }
+function pintar(e) {
+  const [x, y] = celdaDe(e); if (x < 0 || y < 0 || x >= P.w || y >= FILAS) return;
+  const f = P.frames[act], i = x * FILAS + y;
+  if (f[i] !== valor) { f[i] = valor; pintarEditor(); pintarVisera(); }
+}
+ed.addEventListener('pointerdown', e => {
+  if (herr === 'mover') return;
+  e.preventDefault(); ed.setPointerCapture(e.pointerId);
+  pausado = true; reproducir();
+  deshacer.push({ act, f: P.frames[act].slice() }); if (deshacer.length > 60) deshacer.shift();
+  trazo = true; valor = herr === 'lapiz' ? 1 : 0; pintar(e);
+});
+ed.addEventListener('pointermove', e => trazo && pintar(e));
+const finTrazo = () => { if (trazo) { trazo = false; pintarCuadros(); guardarActual(); } };
+ed.addEventListener('pointerup', finTrazo); ed.addEventListener('pointercancel', finTrazo);
+function setHerr(h) { herr = h; for (const [id, n] of [['hLapiz', 'lapiz'], ['hBorrar', 'borrar'], ['hMover', 'mover']]) $(id).setAttribute('aria-pressed', n === h); ed.classList.toggle('mover', h === 'mover'); }
+$('hLapiz').onclick = () => setHerr('lapiz'); $('hBorrar').onclick = () => setHerr('borrar'); $('hMover').onclick = () => setHerr('mover');
+$('bDeshacer').onclick = () => { const u = deshacer.pop(); if (!u || !P.frames[u.act]) return; P.frames[u.act] = u.f; act = u.act; todo(); };
+function editar(fn) { deshacer.push({ act, f: P.frames[act].slice() }); P.frames[act] = fn(P.frames[act]); todo(); }
+$('bLimpiar').onclick = () => editar(() => vacia(P.w));
+$('bInv').onclick = () => editar(f => f.map(v => 1 - v));
+const mover = d => editar(f => { const n = vacia(P.w); for (let x = 0; x < P.w; x++) { const nx = x + d; if (nx >= 0 && nx < P.w) n.set(f.subarray(x * FILAS, x * FILAS + FILAS), nx * FILAS); } return n; });
+$('bIzq').onclick = () => mover(-1); $('bDer').onclick = () => mover(1);
+
+function pintarCuadros() {
+  const c = $('cuadros'); c.innerHTML = '';
+  P.frames.forEach((f, i) => {
+    const b = document.createElement('button'); b.setAttribute('aria-label', 'Cuadro ' + (i + 1)); b.setAttribute('aria-current', i === act);
+    b.appendChild(miniatura(P, f)); b.onclick = () => { act = i; pausado = true; reproducir(); todo(); };
+    c.appendChild(b);
+  });
+}
+function marcarCuadro() { [...$('cuadros').children].forEach((b, i) => b.setAttribute('aria-current', i === act)); }
+$('cNuevo').onclick = () => { P.frames.splice(act + 1, 0, vacia(P.w)); act++; todo(); };
+$('cDup').onclick = () => { P.frames.splice(act + 1, 0, P.frames[act].slice()); act++; todo(); };
+$('cBorrar').onclick = () => { if (P.frames.length < 2) return aviso('La pieza necesita al menos un cuadro'); P.frames.splice(act, 1); act = Math.max(0, act - 1); todo(); };
+$('bNuevo').onclick = () => { if (animando) return aviso('Detén la animación primero'); P = { n: 'Mi diseño', w: COLS, fps: 3, r: false, frames: [vacia()] }; act = 0; deshacer = []; seleccion = null; elegirModo(1); todo(); aviso('Lienzo en blanco listo'); };
+$('bGuardar').onclick = () => {
+  const n = prompt('Nombre del diseño', P.n && !GAL.some(g => g.n === P.n) ? P.n : 'Mi diseño');
+  if (n === null) return;
+  P.n = n.trim() || 'Mi diseño';
+  mios.unshift(serializar(P)); store.set('casco.mios', mios);
+  seleccion = 'm0'; pintarGaleria(); infoPieza(); aviso('Guardado en mis diseños');
+};
+
+function todo() {
+  if (act >= P.frames.length) act = P.frames.length - 1;
+  infoPieza(); medirEditor(); pintarEditor(); pintarCuadros(); reproducir(); botones(); guardarActual();
+}
+
+// ================= Importar =================
+let ultimo = null;
+$('archivo').onchange = e => { const f = e.target.files[0]; if (f) { ultimo = f; importar(); } e.target.value = ''; };
+$('umbral').oninput = () => $('umbralV').value = $('umbral').value;
+$('umbral').onchange = () => ultimo && importar();
+$('invertir').onchange = () => ultimo && importar();
+const centrar = cols => {
+  if (cols.length >= COLS) { const o = Math.floor((cols.length - COLS) / 2); return cols.slice(o, o + COLS); }
+  const i = Math.floor((COLS - cols.length) / 2), v = () => new Uint8Array(FILAS);
+  return [...Array.from({ length: i }, v), ...cols, ...Array.from({ length: COLS - cols.length - i }, v)];
+};
+const aFrame = cols => { const f = vacia(cols.length); cols.forEach((c, x) => f.set(c, x * FILAS)); return f; };
+async function importar() {
+  if (animando) return aviso('Detén la animación primero');
+  const f = ultimo, um = +$('umbral').value, inv = $('invertir').checked;
+  $('txtArchivo').textContent = f.name;
+  try {
+    let lista, demora = 0;
+    if (/gif$/i.test(f.type) || /\.gif$/i.test(f.name)) {
+      const g = leerGIF(await f.arrayBuffer());
+      lista = g.frames.map(fr => rgbaAColumnas(fr.rgba, g.W, g.H, um, inv));
+      demora = g.frames.reduce((s, fr) => s + fr.delay, 0) / g.frames.length;
+    } else {
+      const bmp = await createImageBitmap(f), c = document.createElement('canvas');
+      c.width = bmp.width; c.height = bmp.height; const g = c.getContext('2d'); g.drawImage(bmp, 0, 0);
+      lista = [rgbaAColumnas(g.getImageData(0, 0, c.width, c.height).data, c.width, c.height, um, inv)];
+    }
+    const nombre = f.name.replace(/\.[^.]+$/, '');
+    if (lista.length === 1 && lista[0].length > COLS) { P = { n: nombre, w: lista[0].length, fps: 3, r: false, frames: [aFrame(lista[0])] }; elegirModo(3); }
+    else { P = { n: nombre, w: COLS, fps: demora ? Math.max(1, Math.min(6, Math.round(1000 / demora))) : 3, r: false, frames: lista.map(c => aFrame(centrar(c))) }; elegirModo(1); }
+    $('fps').value = P.fps; $('fpsV').value = P.fps;
+    act = 0; deshacer = []; seleccion = null; pausado = reducir; todo();
+    aviso(`${nombre}: ${P.frames.length > 1 ? P.frames.length + ' cuadros' : P.w > COLS ? 'tira de ' + P.w + ' columnas' : 'imagen'}. Guárdalo desde Dibujar.`);
+  } catch (err) { aviso('No se pudo leer el archivo: ' + err.message, true); }
+}
+
+// ================= Texto =================
+function glifo(ch) { const h = FUENTE[ch.codePointAt(0)] || FUENTE[63]; return Array.from({ length: 6 }, (_, x) => parseInt(h.substr(x * 3, 3), 16)); }
+function textoAColumnas(txt, gruesa, sep) {
+  const cols = [];
+  for (const ch of txt.replace(/\s+/g, ' ')) {
+    let g = glifo(ch);
+    if (gruesa) { g = [...g, 0].map((v, i, a) => v | (i ? a[i - 1] : 0)); }
+    g.forEach(v => cols.push(v));
+    for (let k = 0; k < sep; k++) cols.push(0);
+  }
+  while (cols.length && cols[cols.length - 1] === 0) cols.pop();
+  return cols.map(v => Uint8Array.from({ length: FILAS }, (_, y) => (v >> (11 - y)) & 1));
+}
+let textoLargo = false;
+function aplicarTexto(silencioso) {
+  const txt = $('texto').value, gruesa = $('gruesa').checked, sep = +$('sep').value;
+  store.set('casco.texto', { txt, gruesa, sep });
+  if (!txt.trim()) { $('infoTexto').textContent = 'Lo que escribas aparece en la visera. Si cabe en la pantalla queda fijo; si es más largo se vuelve tira y se desplaza.'; return; }
+  if (animando) { if (!silencioso) aviso('Detén la animación antes de escribir'); return; }
+  let cols = textoAColumnas(txt.trim(), gruesa, sep);
+  const nombre = '“' + (txt.trim().length > 22 ? txt.trim().slice(0, 21) + '…' : txt.trim()) + '”';
+  if (cols.length <= COLS) {
+    P = { n: nombre, w: COLS, fps: 3, r: false, frames: [aFrame(centrar(cols))] };
+    $('infoTexto').textContent = `Cabe en la visera (${cols.length} de 48 columnas). Se envía fijo, o elige un modo para que se mueva.`;
+    if (textoLargo) elegirModo(1);
+    textoLargo = false;
+  } else {
+    const hueco = Array.from({ length: 16 }, () => new Uint8Array(FILAS));
+    cols = [...cols, ...hueco];
+    P = { n: nombre, w: cols.length, fps: 3, r: false, frames: [aFrame(cols)] };
+    $('infoTexto').textContent = `Es más largo que la visera (${cols.length - 16} columnas), así que se envía como tira que se desplaza.`;
+    if (!textoLargo) elegirModo(3);
+    textoLargo = true;
+  }
+  act = 0; desplaz = 0; deshacer = []; seleccion = null; pausado = reducir;
+  document.querySelectorAll('.mini').forEach(m => m.setAttribute('aria-current', false));
+  todo();
+}
+$('texto').oninput = () => aplicarTexto(false);
+$('gruesa').onchange = () => aplicarTexto(false);
+$('sep').oninput = () => { $('sepV').value = $('sep').value; aplicarTexto(false); };
+$('bGuardarTexto').onclick = () => $('bGuardar').onclick();
+{ const t = store.get('casco.texto', null); if (t) { $('texto').value = t.txt || ''; $('gruesa').checked = !!t.gruesa; $('sep').value = t.sep || 0; $('sepV').value = $('sep').value; } }
+
+// ================= Modo y ajustes =================
+function elegirModo(m) { modo = m; document.querySelectorAll('.modos button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.modo === m)); }
+document.querySelectorAll('.modos button').forEach(b => b.onclick = () => elegirModo(+b.dataset.modo));
+$('fps').oninput = () => { $('fpsV').value = $('fps').value; P.fps = +$('fps').value; infoPieza(); reproducir(); guardarActual(); };
+$('rapido').onchange = () => { P.r = $('rapido').checked; guardarActual(); };
+
+// ================= Bluetooth =================
+const UUID = {
+  svc: '0000fee9-0000-1000-8000-00805f9b34fb', cmd: 'd44bc439-abfd-45a2-b575-925416129600',
+  data: 'd44bc439-abfd-45a2-b575-92541612960a', live: 'd44bc439-abfd-45a2-b575-92541612960b', notif: 'd44bc439-abfd-45a2-b575-925416129601',
+};
+let disp = null, C = {}, cola = Promise.resolve(), esperas = [], ocupado = false, animando = false;
+const conectado = () => !!(disp && disp.gatt && disp.gatt.connected && C.cmd);
+function enCola(fn) { const p = cola.then(fn); cola = p.catch(() => {}); return p; }
+function escribir(ch, bytes, resp) {
+  const d = cifrar(bytes);
+  return enCola(() => resp ? (ch.writeValueWithResponse ? ch.writeValueWithResponse(d) : ch.writeValue(d))
+                           : (ch.writeValueWithoutResponse ? ch.writeValueWithoutResponse(d) : ch.writeValue(d)));
+}
+const cmd = b => escribir(C.cmd, b, true);
+function esperar(prefijo, ms) {
+  return new Promise((res, rej) => {
+    const w = { prefijo, res }; esperas.push(w);
+    setTimeout(() => { const i = esperas.indexOf(w); if (i >= 0) { esperas.splice(i, 1); rej(new Error('El casco no confirmó ' + prefijo + '. Acércalo y vuelve a intentar.')); } }, ms);
+  });
+}
+function alNotificar(e) {
+  const v = e.target.value, b = descifrar(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+  const t = String.fromCharCode(...b.slice(1, 1 + Math.min(b[0], 15))).replace(/\0+$/, '');
+  registro('←', t);
+  const i = esperas.findIndex(w => t.startsWith(w.prefijo)); if (i >= 0) esperas.splice(i, 1)[0].res(t);
+}
+function estado(texto, nombre) {
+  const e = $('estado'); e.querySelector('span').innerHTML = '';
+  if (nombre) { const b = document.createElement('b'); b.textContent = nombre; e.querySelector('span').append(b, ' ', texto); e.dataset.on = 1; }
+  else { e.querySelector('span').textContent = texto; delete e.dataset.on; }
+}
+function botones() {
+  const ok = conectado(), tira = P.w > COLS, anim = P.frames.length > 1;
+  $('btnCon').textContent = ok ? 'Desconectar' : 'Conectar casco';
+  if (ok) $('btnCon').dataset.on = 1; else delete $('btnCon').dataset.on;
+  $('bEnviar').disabled = !ok || ocupado || animando;
+  $('bEnviar').textContent = tira ? 'Enviar tira' : anim ? 'Enviar cuadro' : 'Enviar imagen';
+  $('bAnimar').disabled = !ok || (ocupado && !animando) || tira || !anim;
+  $('bAnimar').textContent = animando ? 'Detener' : 'Animar';
+  if (animando) $('bAnimar').dataset.activo = 1; else delete $('bAnimar').dataset.activo;
+  $('bAnimar').classList.toggle('principal', anim && !tira);
+  $('bEnviar').classList.toggle('principal', !anim || tira);
+  $('ayuda').textContent = !navigator.bluetooth ? '' : !ok ? 'Conecta el casco para enviar. Cierra antes Magic Display.'
+    : animando ? 'Animando. Deja esta página abierta y la pantalla encendida.'
+    : tira ? 'Las tiras se quedan guardadas en el casco y se desplazan solas.'
+    : anim ? 'Animar manda los cuadros en vivo; Enviar deja fijo el cuadro actual en el casco.'
+    : 'La imagen se queda guardada en el casco aunque cierres la página.';
+}
+async function conectar() {
+  if (conectado()) { animando = false; await sleep(60); disp.gatt.disconnect(); return; }
+  try {
+    disp = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'DSD-' }], optionalServices: [UUID.svc] });
+    disp.addEventListener('gattserverdisconnected', () => { C = {}; animando = ocupado = false; estado('Casco sin conectar'); botones(); reproducir(); registro('Desconectado'); });
+    estado('Conectando…');
+    const srv = await (await disp.gatt.connect()).getPrimaryService(UUID.svc);
+    for (const k of ['cmd', 'data', 'live', 'notif']) C[k] = await srv.getCharacteristic(UUID[k]);
+    await C.notif.startNotifications(); C.notif.addEventListener('characteristicvaluechanged', alNotificar);
+    const pr = esperar('STYPE', 3000); await cmd(comando('STYPE'));
+    const tipo = await pr.catch(() => '');
+    estado(tipo.includes('12X48') ? 'conectado, pantalla 12×48' : 'conectado', disp.name);
+    registro('Conectado a', disp.name, tipo);
+    if (tipo && !tipo.includes('12X48')) aviso('Este casco no reportó pantalla 12×48; puede verse distinto.', true);
+  } catch (err) {
+    estado('Casco sin conectar');
+    if (err.name !== 'NotFoundError') { registro('Error:', err.message); aviso('No se pudo conectar. Cierra Magic Display y nRF Connect y vuelve a intentar.', true); }
+  }
+  botones();
+}
+$('btnCon').onclick = conectar;
+
+async function enviarDatos(datos) {
+  for (let i = 0; ; i++) {
+    const pr = esperar('DATSOK', 2000);
+    await cmd(comando('DATS', datos.length >> 8, datos.length & 255, 0, 0));
+    try { await pr; break; } catch (e) { if (i >= 2) throw e; await sleep(300); }
+  }
+  for (let i = 0; i < datos.length; i += 15) { const t = datos.slice(i, i + 15); await escribir(C.data, Uint8Array.from([t.length, ...t]), false); await sleep(60); }
+  const pr = esperar('DATCPOK', 5000); await cmd(comando('DATCP')); await pr;
+}
+$('bEnviar').onclick = async () => {
+  ocupado = true; botones(); const txt = $('bEnviar').textContent; $('bEnviar').textContent = 'Enviando…';
+  try {
+    const datos = empaquetar(colsDe(P.frames[act], P.w));
+    await enviarDatos(datos); await cmd(comando('MODE', modo));
+    registro('Enviado', datos.length, 'bytes, modo', modo); aviso('Enviado al casco');
+  } catch (err) { registro('Error:', err.message); aviso(err.message, true); }
+  ocupado = false; $('bEnviar').textContent = txt; botones();
+};
+$('bAnimar').onclick = async () => {
+  if (animando) { animando = false; botones(); return; }
+  animando = ocupado = true; clearInterval(tPlay); botones();
+  const rapido = $('rapido').checked;
+  try {
+    await cmd(comando('SMVEW', 1)); $('bAnimar').textContent = 'Preparando…'; await sleep(1500); botones();
+    let previo = null, i = 0;
+    while (animando && conectado()) {
+      const t0 = performance.now(); act = i % P.frames.length; const cols = colsDe(P.frames[act], COLS);
+      for (let x = 0; x < COLS && animando; x++) {
+        if (previo && previo[x].every((v, k) => v === cols[x][k])) continue;
+        if (rapido) { await escribir(C.live, paqueteVivo(x, cols[x]), false); await sleep(15); }
+        else await escribir(C.live, paqueteVivo(x, cols[x]), true);
+      }
+      previo = cols.map(c => c.slice()); pintarVisera(); marcarCuadro(); i++;
+      await sleep(Math.max(0, 1000 / P.fps - (performance.now() - t0)));
+    }
+  } catch (err) { registro('Error:', err.message); aviso('Se interrumpió la animación: ' + err.message, true); }
+  animando = false;
+  if (conectado()) await cmd(comando('SMVEW', 0)).catch(() => {});
+  ocupado = false; botones(); reproducir();
+};
+for (const [id, nom] of [['brillo', 'LIGHT'], ['vel', 'SPEED']]) {
+  $(id).oninput = () => $(id + 'V').value = $(id).value;
+  $(id).onchange = () => { store.set('casco.' + id, +$(id).value); if (conectado() && !animando) cmd(comando(nom, +$(id).value)).catch(e => registro('Error:', e.message)); };
+  $(id).value = store.get('casco.' + id, +$(id).value); $(id + 'V').value = $(id).value;
+}
+
+// ================= Inicio =================
+if (!navigator.bluetooth) { $('sinBT').hidden = false; $('btnCon').disabled = true; }
+$('fps').value = P.fps; $('fpsV').value = P.fps; $('rapido').checked = !!P.r;
+if (P.w > COLS) elegirModo(3);
+estado('Casco sin conectar');
+pintarGaleria();
+irA(store.get('casco.tab', 'galeria'));
+addEventListener('resize', () => { medirEditor(); pintarEditor(); });
+todo();
+</script>
+</body>
+</html>
