@@ -40,6 +40,8 @@ UUID_LIVE = "d44bc439-abfd-45a2-b575-92541612960b"  # dibujo en tiempo real
 NOMBRE_PREFIJO = "DSD-"
 FILAS, COLUMNAS = 12, 48
 
+ORDEN = sorted(range(48), key=lambda x: (x % 6, x))  # orden de envío en modo en vivo
+
 MODOS = {"fijo": 1, "parpadeo": 2, "izq": 3, "der": 4, "arriba": 5, "abajo": 6}
 
 _aes = AES.new(KEY, AES.MODE_ECB)
@@ -213,7 +215,8 @@ class Casco:
     async def vivo_cuadro(self, cols, pausa=0.02, confirmar=True, completo=False):
         """Manda solo las columnas que cambiaron respecto al cuadro anterior (o todas si completo=True)."""
         previo = None if completo else getattr(self, "_ultimo", None)
-        for x, col in enumerate(cols[:COLUMNAS]):
+        for x in ORDEN:  # intercalado: todo el dibujo cambia a la vez, sin barrido
+            col = cols[x]
             if previo is not None and previo[x] == col:
                 continue
             palabra = sum(1 << (15 - r) for r in range(FILAS) if col[r])  # fila 0 (arriba) = bit 15

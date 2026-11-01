@@ -241,7 +241,7 @@ summary{cursor:pointer;color:var(--tenue)}
         <div class="campo"><label for="brillo">Brillo</label><input id="brillo" type="range" min="1" max="100" value="80"><output id="brilloV">80</output></div>
         <div class="campo"><label for="vel">Desplazamiento</label><input id="vel" type="range" min="0" max="100" value="50"><output id="velV">50</output></div>
         <div class="campo"><label for="fps">Cuadros/seg</label><input id="fps" type="range" min="1" max="6" value="3"><output id="fpsV">3</output></div>
-        <label class="check"><input id="rapido" type="checkbox"> Envío rápido (para animaciones con mucho movimiento)</label>
+        <label class="check"><input id="rapido" type="checkbox" checked> Envío rápido de animaciones (desactívalo si ves LEDs que se quedan prendidos de más)</label>
         <p class="texto">El brillo y el desplazamiento se aplican al casco en cuanto mueves el control. La animación corre mientras esta página siga abierta y la pantalla encendida.</p>
         <details><summary>Registro de Bluetooth</summary><pre id="registro"></pre></details>
         <p class="creditos">Iconos de la galería basados en pixelarticons de Gerrit Halfmann (licencia MIT). Fuente de texto Spleen 6×12 de Frederic Cambus (licencia BSD de 2 cláusulas). Los avisos completos están en el código de esta página.</p>
@@ -645,7 +645,7 @@ function cargarPieza(p, id) {
   P = { n: p.n, w: p.w, fps: p.fps, r: p.r, frames: p.frames.map(f => f.slice()) };
   act = 0; desplaz = 0; deshacer = []; seleccion = id; store.set('casco.sel', id);
   if (P.w > COLS) elegirModo(3); else elegirModo(1);
-  $('fps').value = P.fps; $('fpsV').value = P.fps; $('rapido').checked = P.r;
+  $('fps').value = P.fps; $('fpsV').value = P.fps;
   [...document.querySelectorAll('.mini')].forEach(m => m.setAttribute('aria-current', m.dataset.id === id));
   todo();
   if (innerWidth < 900) document.querySelector('.izq').scrollIntoView({ behavior: reducir ? 'auto' : 'smooth', block: 'start' });
@@ -821,13 +821,15 @@ $('bGuardarTexto').onclick = () => $('bGuardar').onclick();
 function elegirModo(m) { modo = m; document.querySelectorAll('.modos button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.modo === m)); }
 document.querySelectorAll('.modos button').forEach(b => b.onclick = () => elegirModo(+b.dataset.modo));
 $('fps').oninput = () => { $('fpsV').value = $('fps').value; P.fps = +$('fps').value; infoPieza(); reproducir(); guardarActual(); };
-$('rapido').onchange = () => { P.r = $('rapido').checked; guardarActual(); };
+$('rapido').onchange = () => store.set('casco.rapido', $('rapido').checked);
 
 // ================= Bluetooth =================
 const UUID = {
   svc: '0000fee9-0000-1000-8000-00805f9b34fb', cmd: 'd44bc439-abfd-45a2-b575-925416129600',
   data: 'd44bc439-abfd-45a2-b575-92541612960a', live: 'd44bc439-abfd-45a2-b575-92541612960b', notif: 'd44bc439-abfd-45a2-b575-925416129601',
 };
+// Orden intercalado: una de cada 6 columnas a lo ancho, así todo el dibujo cambia a la vez en vez de barrer de izquierda a derecha.
+const ORDEN = Array.from({ length: COLS }, (_, x) => x).sort((a, b) => (a % 6) - (b % 6) || a - b);
 let disp = null, C = {}, cola = Promise.resolve(), esperas = [], ocupado = false, animando = false;
 const conectado = () => !!(disp && disp.gatt && disp.gatt.connected && C.cmd);
 function enCola(fn) { const p = cola.then(fn); cola = p.catch(() => {}); return p; }
@@ -917,15 +919,20 @@ $('bAnimar').onclick = async () => {
   const rapido = $('rapido').checked;
   try {
     await cmd(comando('SMVEW', 1)); $('bAnimar').textContent = 'Preparando…'; await sleep(1500); botones();
-    let previo = null, i = 0;
+    let previo = null, i = 0, suma = 0;
     while (animando && conectado()) {
       const t0 = performance.now(); act = i % P.frames.length; const cols = colsDe(P.frames[act], COLS);
-      for (let x = 0; x < COLS && animando; x++) {
-        if (previo && previo[x].every((v, k) => v === cols[x][k])) continue;
+      // En modo rápido se puede perder algún paquete: cada 4 vueltas se reenvía el cuadro completo.
+      const completo = !previo || (rapido && i > 0 && i % (P.frames.length * 4) === 0);
+      for (const x of ORDEN) {
+        if (!animando) break;
+        if (!completo && previo[x].every((v, k) => v === cols[x][k])) continue;
         if (rapido) { await escribir(C.live, paqueteVivo(x, cols[x]), false); await sleep(15); }
         else await escribir(C.live, paqueteVivo(x, cols[x]), true);
       }
       previo = cols.map(c => c.slice()); pintarVisera(); marcarCuadro(); i++;
+      suma += performance.now() - t0;
+      if (i % 10 === 0) { registro('Promedio por cuadro:', Math.round(suma / 10), 'ms'); suma = 0; }
       await sleep(Math.max(0, 1000 / P.fps - (performance.now() - t0)));
     }
   } catch (err) { registro('Error:', err.message); aviso('Se interrumpió la animación: ' + err.message, true); }
@@ -941,7 +948,7 @@ for (const [id, nom] of [['brillo', 'LIGHT'], ['vel', 'SPEED']]) {
 
 // ================= Inicio =================
 if (!navigator.bluetooth) { $('sinBT').hidden = false; $('btnCon').disabled = true; }
-$('fps').value = P.fps; $('fpsV').value = P.fps; $('rapido').checked = !!P.r;
+$('fps').value = P.fps; $('fpsV').value = P.fps; $('rapido').checked = store.get('casco.rapido', true);
 if (P.w > COLS) elegirModo(3);
 estado('Casco sin conectar');
 pintarGaleria();
