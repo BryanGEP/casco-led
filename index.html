@@ -919,21 +919,38 @@ $('bAnimar').onclick = async () => {
   const rapido = $('rapido').checked;
   try {
     await cmd(comando('SMVEW', 1)); $('bAnimar').textContent = 'Preparando…'; await sleep(1500); botones();
-    let previo = null, i = 0, suma = 0;
+    let previo = null, i = 0, turno = 0, ritmo = 0, sumaVuelta = 0, inicioVuelta = 0;
+    const mandar = async (x, col) => {
+      if (rapido) { await escribir(C.live, paqueteVivo(x, col), false); await sleep(15); }
+      else await escribir(C.live, paqueteVivo(x, col), true);
+    };
     while (animando && conectado()) {
-      const t0 = performance.now(); act = i % P.frames.length; const cols = colsDe(P.frames[act], COLS);
-      // En modo rápido se puede perder algún paquete: cada 4 vueltas se reenvía el cuadro completo.
-      const completo = !previo || (rapido && i > 0 && i % (P.frames.length * 4) === 0);
+      const t0 = performance.now(), n = P.frames.length;
+      act = i % n; const cols = colsDe(P.frames[act], COLS);
+      const enviadas = new Set();
       for (const x of ORDEN) {
         if (!animando) break;
-        if (!completo && previo[x].every((v, k) => v === cols[x][k])) continue;
-        if (rapido) { await escribir(C.live, paqueteVivo(x, cols[x]), false); await sleep(15); }
-        else await escribir(C.live, paqueteVivo(x, cols[x]), true);
+        if (previo && previo[x].every((v, k) => v === cols[x][k])) continue;
+        await mandar(x, cols[x]); enviadas.add(x);
+      }
+      // En modo rápido se puede perder algún paquete: cada cuadro refresca 2 columnas más, por turnos.
+      if (rapido && previo) for (let k = 0; k < 2 && animando; k++) {
+        const x = ORDEN[turno++ % COLS];
+        if (!enviadas.has(x)) await mandar(x, cols[x]);
       }
       previo = cols.map(c => c.slice()); pintarVisera(); marcarCuadro(); i++;
-      suma += performance.now() - t0;
-      if (i % 10 === 0) { registro('Promedio por cuadro:', Math.round(suma / 10), 'ms'); suma = 0; }
-      await sleep(Math.max(0, 1000 / P.fps - (performance.now() - t0)));
+      const dur = performance.now() - t0;
+      if (i === 1) inicioVuelta = performance.now();
+      sumaVuelta += dur;
+      if (i % n === 0) {   // fin de vuelta: el promedio marca el ritmo de la siguiente, para que no haya tirones
+        ritmo = sumaVuelta / n; sumaVuelta = 0;
+        if (i % (n * 3) === 0) {
+          const real = 1000 * (i - 1) / (performance.now() - inicioVuelta);
+          registro(`Corriendo a ${real.toFixed(1)} cuadros/seg (pedidos: ${P.fps})`);
+        }
+      }
+      // Cada cuadro dura lo pedido o el promedio real de la vuelta anterior, lo que sea mayor.
+      await sleep(Math.max(0, Math.max(1000 / P.fps, ritmo) - dur));
     }
   } catch (err) { registro('Error:', err.message); aviso('Se interrumpió la animación: ' + err.message, true); }
   animando = false;
